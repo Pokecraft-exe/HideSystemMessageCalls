@@ -53,7 +53,7 @@ class HideSystemMessages : Plugin() {
 
         const val KEY_DELETED = "deleted_ids"
         private const val TAP_WINDOW_MS = 2000L
-        private val CALL_OPTION_REGEX = Regex("(voice|video) call", setOf(RegexOption.IGNORE_CASE))
+        private val CALL_OPTION_REGEX = Regex("(voice|video) call", RegexOption.IGNORE_CASE)
     }
 
     /** Message IDs the user "deleted" for themselves. Saved in settings, so it survives restarts. */
