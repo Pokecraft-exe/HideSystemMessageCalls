@@ -4,6 +4,7 @@ import android.app.Dialog
 import android.content.Context
 import android.graphics.Color
 import android.os.SystemClock
+import android.text.TextUtils
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
@@ -77,11 +78,21 @@ class HideSystemMessages : Plugin() {
 
     private fun loadDeleted() {
         deletedIds.clear()
-        settings.getString(KEY_DELETED, "")
-            .split(',').mapNotNullTo(deletedIds) { it.trim().toLongOrNull() }
+        // Plain Java parsing: Discord's bundled Kotlin clashes with some stdlib string helpers
+        val raw = settings.getString(KEY_DELETED, "") ?: return
+        for (part in Pattern.compile(",").split(raw)) {
+            try { deletedIds.add(java.lang.Long.parseLong(part)) } catch (e: NumberFormatException) {}
+        }
     }
 
-    private fun saveDeleted() = settings.setString(KEY_DELETED, deletedIds.joinToString(","))
+    private fun saveDeleted() {
+        val sb = StringBuilder()
+        for (id in deletedIds) {
+            if (sb.length > 0) sb.append(',')
+            sb.append(id)
+        }
+        settings.setString(KEY_DELETED, sb.toString())
+    }
 
     val deletedCount get() = deletedIds.size
 
@@ -156,9 +167,15 @@ class HideSystemMessages : Plugin() {
 
         val options = ArrayList<TextView>()
         collectTextViews(root, options)
-        val callOptions = options.filter { CALL_OPTION_PATTERN.matcher(it.text ?: "").find() }
-        // Non-English clients: fall back to the clickable rows of the menu
-        val anchor = (callOptions.ifEmpty { options.filter { it.isClickable } }).lastOrNull() ?: return false
+        // Last "voice/video call" option; non-English clients fall back to the last clickable row
+        var anchor: TextView? = null
+        var fallback: TextView? = null
+        for (tv in options) {
+            if (CALL_OPTION_PATTERN.matcher(tv.text).find()) anchor = tv
+            if (tv.isClickable) fallback = tv
+        }
+        if (anchor == null) anchor = fallback
+        if (anchor == null) return false
 
         val item = makeDeleteItem(anchor) {
             dialog.dismiss()
@@ -185,7 +202,9 @@ class HideSystemMessages : Plugin() {
     }
 
     private fun collectTextViews(v: View, out: MutableList<TextView>) {
-        if (v is TextView && v.visibility == View.VISIBLE && !v.text.isNullOrBlank()) out += v
+        if (v is TextView && v.visibility == View.VISIBLE && v.text != null &&
+            TextUtils.getTrimmedLength(v.text) > 0
+        ) out.add(v)
         if (v is ViewGroup) for (i in 0 until v.childCount) collectTextViews(v.getChildAt(i), out)
     }
 
@@ -228,7 +247,11 @@ class HideSystemMessages : Plugin() {
         val chat = Utils.widgetChatList ?: return@post
         val adapter = try { WidgetChatList.`access$getAdapter$p`(chat) } catch (e: Throwable) { null } ?: return@post
         if (messageId == null) { adapter.notifyDataSetChanged(); return@post }
-        val idx = adapter.internalData.indexOfFirst { (it as? MessageEntry)?.message?.id == messageId }
+        var idx = -1
+        val data = adapter.internalData
+        for (i in 0 until data.size) {
+            if ((data[i] as? MessageEntry)?.message?.id == messageId) { idx = i; break }
+        }
         if (idx >= 0) adapter.notifyItemChanged(idx) else adapter.notifyDataSetChanged()
     }
 
