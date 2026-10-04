@@ -25,6 +25,7 @@ import com.discord.widgets.chat.list.entries.ChatListEntry
 import com.discord.widgets.chat.list.entries.MessageEntry
 import com.lytefast.flexinput.R
 import java.util.WeakHashMap
+import java.util.regex.Pattern
 
 /** A group of Discord message types that can be toggled together. */
 data class Category(
@@ -53,7 +54,7 @@ class HideSystemMessages : Plugin() {
 
         const val KEY_DELETED = "deleted_ids"
         private const val TAP_WINDOW_MS = 2000L
-        private val CALL_OPTION_REGEX = Regex("(voice|video) call", RegexOption.IGNORE_CASE)
+        private val CALL_OPTION_PATTERN: Pattern = Pattern.compile("(voice|video) call", Pattern.CASE_INSENSITIVE)
     }
 
     /** Message IDs the user "deleted" for themselves. Saved in settings, so it survives restarts. */
@@ -155,7 +156,7 @@ class HideSystemMessages : Plugin() {
 
         val options = ArrayList<TextView>()
         collectTextViews(root, options)
-        val callOptions = options.filter { CALL_OPTION_REGEX.containsMatchIn(it.text ?: "") }
+        val callOptions = options.filter { CALL_OPTION_PATTERN.matcher(it.text ?: "").find() }
         // Non-English clients: fall back to the clickable rows of the menu
         val anchor = (callOptions.ifEmpty { options.filter { it.isClickable } }).lastOrNull() ?: return false
 
